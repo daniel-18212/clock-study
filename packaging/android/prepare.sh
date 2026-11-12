@@ -20,10 +20,28 @@ original = path.read_text(encoding="utf-8")
 internet = '    <uses-permission android:name="android.permission.INTERNET" />'
 if original.count(internet) != 1:
     raise SystemExit("Android manifest template changed: could not add alarm permissions")
-path.write_text(original.replace(internet, internet + """
+manifest = original.replace(internet, internet + """
     <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
-    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" android:maxSdkVersion="32" />"""), encoding="utf-8")
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" android:maxSdkVersion="32" />""")
+application_end = "    </application>"
+if manifest.count(application_end) != 1:
+    raise SystemExit("Android manifest template changed: could not add alarm receiver")
+manifest = manifest.replace(application_end, """        <receiver android:name=".ClockAlarmReceiver" android:exported="false" />
+    </application>""")
+path.write_text(manifest, encoding="utf-8")
 PY
+fi
+
+mkdir -p "$project/app/src/main/java/com/clockstudy/desktop"
+cp packaging/android/ClockAlarmPlugin.kt "$project/app/src/main/java/com/clockstudy/desktop/"
+
+rules="$project/app/proguard-rules.pro"
+if ! grep -Fq 'com.clockstudy.desktop.ClockAlarmPlugin' "$rules"; then
+  cat >> "$rules" <<'PROGUARD'
+
+-keep class com.clockstudy.desktop.ClockAlarmPlugin { *; }
+-keep class com.clockstudy.desktop.ClockAlarmArgs { *; }
+PROGUARD
 fi
 
 icons="$(mktemp -d)"

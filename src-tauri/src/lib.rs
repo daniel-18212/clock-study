@@ -1,4 +1,6 @@
 mod timer;
+#[cfg(target_os = "android")]
+mod android_alarm;
 
 use serde::{de::DeserializeOwned, Serialize};
 use std::{fs, path::Path, sync::Mutex, thread, time::Duration};
@@ -138,7 +140,7 @@ fn timer_action(
         timer.apply(action, now)?;
 
         #[cfg(target_os = "android")]
-        if let Err(error) = update_android_alarm(&app, previous_alert, timer.alert_deadline(), now) {
+        if let Err(error) = android_alarm::update(&app, previous_alert, timer.alert_deadline(), now) {
             eprintln!("Clock Study: {error}");
         }
     }
@@ -156,35 +158,6 @@ fn request_android_notifications(app: AppHandle) -> Result<(), String> {
     app.notification().request_permission().map_err(|error| error.to_string())?;
     #[cfg(not(target_os = "android"))]
     let _ = app;
-    Ok(())
-}
-
-#[cfg(target_os = "android")]
-fn update_android_alarm(
-    app: &AppHandle,
-    previous: Option<(Duration, &'static str)>,
-    next: Option<(Duration, &'static str)>,
-    now: Duration,
-) -> tauri_plugin_notification::Result<()> {
-    use tauri_plugin_notification::Schedule;
-
-    const ALARM_ID: i32 = 1;
-
-    if previous == next {
-        return Ok(());
-    }
-    let notification = app.notification();
-    if let Some((deadline, message)) = next {
-        let date = time::OffsetDateTime::now_utc() + deadline.saturating_sub(now);
-        notification.builder()
-            .id(ALARM_ID)
-            .title("Clock Study")
-            .body(message)
-            .schedule(Schedule::At { date, repeating: false, allow_while_idle: true })
-            .show()?;
-    } else if previous.is_some_and(|(deadline, _)| deadline > now) {
-        notification.cancel(vec![ALARM_ID])?;
-    }
     Ok(())
 }
 
@@ -221,7 +194,11 @@ fn track_timer(app: AppHandle) {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let builder = tauri::Builder::default()
-        .plugin(tauri_plugin_notification::init())
+        .plugin(tauri_plugin_notification::init());
+    #[cfg(target_os = "android")]
+    let builder = builder.plugin(android_alarm::init());
+
+    let builder = builder
         .setup(|app| {
             let mut settings: Settings = load(app.handle(), "timer.json");
             if !settings.valid() {

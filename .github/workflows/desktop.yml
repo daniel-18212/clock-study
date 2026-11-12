@@ -171,6 +171,8 @@ jobs:
         with:
           distribution: temurin
           java-version: '21'
+      - uses: android-actions/setup-android@v3
+        if: matrix.platform == 'android-arm64'
       - name: Build and verify Android APK
         if: matrix.platform == 'android-arm64'
         shell: bash
@@ -183,7 +185,6 @@ jobs:
         run: |
           ndk=28.2.13676358
           tools=35.0.0
-          sdkmanager --licenses < <(yes) >/dev/null
           sdkmanager "ndk;$ndk" "build-tools;$tools"
           export NDK_HOME="$ANDROID_HOME/ndk/$ndk"
           export ANDROID_NDK_HOME="$NDK_HOME"
@@ -225,6 +226,9 @@ jobs:
           "$ANDROID_HOME/build-tools/$tools/aapt2" dump badging "$output" > "$RUNNER_TEMP/clock-study-apk.txt"
           grep -F "name='android.permission.POST_NOTIFICATIONS'" "$RUNNER_TEMP/clock-study-apk.txt"
           grep -F "name='android.permission.USE_EXACT_ALARM'" "$RUNNER_TEMP/clock-study-apk.txt"
+          "$ANDROID_HOME/build-tools/$tools/aapt2" dump xmltree --file AndroidManifest.xml "$output" \
+            > "$RUNNER_TEMP/clock-study-manifest.txt"
+          grep -F "ClockAlarmReceiver" "$RUNNER_TEMP/clock-study-manifest.txt"
       - uses: actions/upload-artifact@v4
         with:
           name: ClockStudy-${{ matrix.platform }}
