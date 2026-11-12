@@ -221,15 +221,23 @@ jobs:
             fi
           done
           packages=("${windows[@]}" "${mac[@]}" "${deb[@]}" "${appimage[@]}")
-          for path in "${packages[@]}"; do
-            (cd -- "$(dirname -- "$path")" && sha256sum -- "$(basename -- "$path")")
-          done > release-assets/SHA256SUMS.txt
           tag="v$VERSION"
-          if gh release view "$tag" > /dev/null 2>&1; then
-            echo "::notice::Release $tag already exists. Bump the version to publish new packages."
-            exit 0
+          if ! gh release view "$tag" > /dev/null 2>&1; then
+            # The Actions token can tag the current default branch, including CI-only fixes.
+            gh release create "$tag" --target "$GITHUB_SHA" --prerelease \
+              --title "Clock Study $tag" --notes-file "docs/releases/$VERSION.md" "${packages[@]}"
           fi
-          # The Actions token can tag the current default branch, including CI-only fixes.
-          gh release create "$tag" --target "$GITHUB_SHA" --prerelease \
-            --title "Clock Study $tag" --notes-file "docs/releases/$VERSION.md" \
-            "${packages[@]}" release-assets/SHA256SUMS.txt
+          # GitHub normalizes asset names on upload. Use the published names and digests.
+          release="$(gh api "repos/$GITHUB_REPOSITORY/releases/tags/$tag")"
+          jq -er '
+            [.assets[] | select(.name | test("(-setup\\.exe|\\.dmg|\\.deb|\\.AppImage)$"))]
+            | if length == 4 and all(.[]; (.digest // "") | test("^sha256:[a-f0-9]{64}$"))
+              then sort_by(.name)[] | "\(.digest | sub("^sha256:"; ""))  \(.name)"
+              else error("Expected four published packages with SHA-256 digests")
+              end
+          ' <<< "$release" > release-assets/SHA256SUMS.txt
+          current="$(jq -r '.assets[] | select(.name == "SHA256SUMS.txt") | .digest // empty' <<< "$release")"
+          actual="$(sha256sum -- release-assets/SHA256SUMS.txt | cut -d ' ' -f 1)"
+          if [[ "$current" != "sha256:$actual" ]]; then
+            gh release upload "$tag" release-assets/SHA256SUMS.txt --clobber
+          fi
