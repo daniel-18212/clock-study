@@ -73,6 +73,47 @@ function setNotice(value?: string) {
   notice.hidden = !value;
 }
 
+const svgNamespace = "http://www.w3.org/2000/svg";
+const digitWidth = 62;
+const digitHeight = 95;
+const glyphSize = 100;
+const glyphContext = document.createElement("canvas").getContext("2d");
+const glyphPositions = new Map<string, { x: number; y: number }>();
+
+function digitFace(face: Element, digit: string) {
+  let position = glyphPositions.get(digit);
+  if (!position) {
+    const style = getComputedStyle(display);
+    if (glyphContext) {
+      glyphContext.font = `${style.fontWeight} ${glyphSize}px ${style.fontFamily}`;
+      glyphContext.textAlign = "center";
+      glyphContext.textBaseline = "alphabetic";
+    }
+    const bounds = glyphContext?.measureText(digit);
+    // Center the visible ink on the hinge, regardless of the font's line box.
+    position = {
+      x: (digitWidth + (bounds ? bounds.actualBoundingBoxLeft - bounds.actualBoundingBoxRight : 0)) / 2,
+      y: (digitHeight + (bounds ? bounds.actualBoundingBoxAscent - bounds.actualBoundingBoxDescent : 70)) / 2,
+    };
+    glyphPositions.set(digit, position);
+  }
+
+  let glyph = face.querySelector("text");
+  if (!glyph) {
+    const svg = document.createElementNS(svgNamespace, "svg");
+    svg.setAttribute("viewBox", `0 0 ${digitWidth} ${digitHeight}`);
+    glyph = document.createElementNS(svgNamespace, "text");
+    glyph.setAttribute("font-size", String(glyphSize));
+    glyph.setAttribute("text-anchor", "middle");
+    glyph.setAttribute("dominant-baseline", "alphabetic");
+    svg.append(glyph);
+    face.append(svg);
+  }
+  glyph.setAttribute("x", String(position.x));
+  glyph.setAttribute("y", String(position.y));
+  glyph.textContent = digit;
+}
+
 function drawTime(next: string) {
   if (next === shown) return;
   if (next.length !== shown.length) {
@@ -81,11 +122,10 @@ function drawTime(next: string) {
       const part = document.createElement("span");
       part.className = character === ":" ? "colon" : "digit";
       part.setAttribute("aria-hidden", "true");
-      if (character === ":") part.textContent = character;
-      else for (const side of ["upper", "lower"]) {
+      if (character !== ":") for (const side of ["upper", "lower"]) {
         const face = document.createElement("span");
         face.className = side;
-        face.textContent = character;
+        digitFace(face, character);
         part.append(face);
       }
       display.append(part);
@@ -95,12 +135,12 @@ function drawTime(next: string) {
       const character = next[index];
       if (character === shown[index]) return;
       part.querySelectorAll(".flap").forEach((node) => node.remove());
-      part.querySelector(".upper")!.textContent = character;
-      part.querySelector(".lower")!.textContent = character;
+      digitFace(part.querySelector(".upper")!, character);
+      digitFace(part.querySelector(".lower")!, character);
       for (const side of ["falling", "landing"]) {
         const flap = document.createElement("span");
         flap.className = "flap " + side;
-        flap.textContent = side === "falling" ? shown[index] : character;
+        digitFace(flap, side === "falling" ? shown[index] : character);
         flap.addEventListener("animationend", () => flap.remove(), { once: true });
         part.append(flap);
       }
