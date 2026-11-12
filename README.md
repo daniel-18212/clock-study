@@ -1,32 +1,44 @@
 # Clock Study
 
-Aplicativo desktop de foco para Windows 11. Pomodoro, cronômetro, temporizador e janela flutuante sempre acima das outras janelas.
+[Português (Brasil)](README.pt-BR.md)
 
-## Compilar no Windows
+An offline desktop Pomodoro, countdown timer, and stopwatch with a resizable floating flip clock.
 
-Instale o [Rust com rustup](https://rustup.rs/) e o [Visual Studio Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/). No instalador do Visual Studio, selecione **Desenvolvimento para desktop com C++**, com MSVC e SDK do Windows. Use Node.js 22 LTS e o WebView2 do Windows. Veja os [pré-requisitos do Tauri](https://v2.tauri.app/start/prerequisites/).
+## Download and install
 
-```powershell
+Download your package from [GitHub Releases](https://github.com/daniel-18212/clock-study/releases).
+
+| System | Package | Installation |
+| --- | --- | --- |
+| Windows 11 x64 | `*-setup.exe` | Run the installer. It includes the offline WebView2 installer for systems that need it. |
+| macOS, Apple Silicon and Intel | `*.dmg` | Open the disk image and drag Clock Study into Applications. |
+| Ubuntu / Debian x64 | `*.deb` | Open it with your package manager or run `sudo apt install ./<file>.deb` from the download folder. |
+| Compatible Linux x64 | `*.AppImage` | Make the file executable and open it. Some distributions require FUSE support. |
+
+Preview releases have no trusted Windows publisher signature or Apple notarization. Windows Smart App Control or macOS Gatekeeper may block them. On Linux Wayland, the compositor controls whether the floating window stays above other apps.
+
+## Use Clock Study
+
+- **Pomodoro:** Set focus, both breaks, and the number of focus blocks before the long break.
+- **Countdown:** Set hours, minutes, and seconds. Click the digits to edit the duration.
+- **Stopwatch:** Start, pause, resume, reset, and record laps.
+- **Floating window:** Click **Flutuar** to compact the window without interrupting the timer. Drag or resize it with the native window controls. Click **Expandir** to restore it.
+
+Durations and window sizes are saved locally. The interface is currently in Brazilian Portuguese.
+
+## Build and release
+
+Install Node.js 22, Rust, and the [Tauri prerequisites](https://v2.tauri.app/start/prerequisites/) for your system.
+
+```sh
 npm install
 npm run tauri dev
-npm run tauri build -- --no-bundle
 ```
 
-O executável de compilação fica em `src-tauri/target/release/clock-study.exe`. O Windows pode bloquear a execução desse binário sem assinatura quando o Controle Inteligente de Aplicativos estiver ativo.
+Build on the target OS using `npm run tauri build -- --bundles nsis` for Windows, `--bundles dmg` for macOS, or `--bundles deb,appimage` for Linux.
 
-## Gerar e publicar o MSIX
+[Clock Study Desktop](.github/workflows/desktop.yml) builds all three platforms. A version change on `main` publishes the installers and SHA-256 checksums as a prerelease once every build succeeds. Bump the version in `package.json`, `src-tauri/Cargo.toml`, and `src-tauri/tauri.conf.json`, and add bilingual notes under `docs/releases/`. Update both READMEs together when installation, usage, or build steps change.
 
-1. Crie o produto **MSIX/PWA** no [Partner Center](https://partner.microsoft.com/dashboard). Abra a seção **Identidade do produto** e copie o nome da identidade, o publicador e o nome de exibição do publicador.
-2. No GitHub, em **Settings → Secrets and variables → Actions → Variables**, adicione `STORE_IDENTITY_NAME`, `STORE_PUBLISHER` e `STORE_PUBLISHER_DISPLAY_NAME`.
-3. Rode o workflow **Clock Study Windows** com **Preparar MSIX para submissão à Microsoft Store** marcado. Também é possível empacotar localmente com o script `packaging/windows/pack-msix.ps1`, passando esses três campos pelos parâmetros.
-4. Envie o MSIX para certificação no Partner Center. A Store assina o pacote durante a publicação. Valide a instalação da versão publicada com o Controle Inteligente de Aplicativos ativo.
+## Microsoft Store
 
-[Documentação da Microsoft sobre assinatura pela Store](https://learn.microsoft.com/windows/apps/publish/faq/get-started-with-the-microsoft-store)
-
-## Verificar no Windows 11
-
-- Inicie um Pomodoro, pause, retome e reinicie. Edite as três durações e o número de blocos.
-- Defina um temporizador de 10 segundos, minimize o app e confira a notificação ao terminar.
-- Registre voltas no cronômetro e abra a lista. Reinicie e confira que a lista foi limpa.
-- Acione **Flutuar**, abra outro aplicativo e confira se o relógio permanece acima. Arraste a janela e redimensione pelos cantos. Volte à janela principal com a contagem ativa.
-- Altere os tamanhos e os tempos, feche e reabra. Verifique se as preferências foram recuperadas.
+Create an MSIX product in [Partner Center](https://partner.microsoft.com/dashboard). Set the repository Actions variables `STORE_IDENTITY_NAME`, `STORE_PUBLISHER`, and `STORE_PUBLISHER_DISPLAY_NAME` using **Product identity**. Run **Clock Study Desktop** with **Prepare an MSIX for Microsoft Store submission** selected. Microsoft signs the MSIX after certification.

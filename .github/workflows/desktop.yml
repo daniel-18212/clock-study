@@ -1,0 +1,202 @@
+name: Clock Study Desktop
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      publish_release:
+        description: Publish this version as a GitHub prerelease
+        type: boolean
+        default: false
+      store_package:
+        description: Prepare an MSIX for Microsoft Store submission
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  prepare:
+    runs-on: ubuntu-22.04
+    outputs:
+      version: ${{ steps.plan.outputs.version }}
+      publish: ${{ steps.plan.outputs.publish }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Check versions and documentation
+        id: plan
+        shell: bash
+        env:
+          BEFORE: ${{ github.event.before }}
+          PUBLISH_REQUESTED: ${{ inputs.publish_release }}
+        run: |
+          version="$(jq -er '.version' src-tauri/tauri.conf.json)"
+          test "$version" = "$(jq -er '.version' package.json)"
+          test "$version" = "$(sed -n 's/^version = "\([^"]*\)"/\1/p' src-tauri/Cargo.toml)"
+          test -s README.md && test -s README.pt-BR.md
+          base=""
+          if [[ "$GITHUB_EVENT_NAME" == pull_request ]]; then
+            base="$(git rev-parse HEAD^1)"
+          elif [[ "$GITHUB_EVENT_NAME" == push && -n "$BEFORE" && ! "$BEFORE" =~ ^0+$ ]]; then
+            base="$BEFORE"
+          fi
+          old_version=""
+          if [[ -n "$base" ]]; then
+            changed="$(git diff --name-only "$base" HEAD)"
+            en=0
+            pt=0
+            if grep -Fxq README.md <<< "$changed"; then en=1; fi
+            if grep -Fxq README.pt-BR.md <<< "$changed"; then pt=1; fi
+            if [[ "$en" != "$pt" ]]; then
+              echo "::error::Update README.md and README.pt-BR.md together."
+              exit 1
+            fi
+            if git cat-file -e "$base:src-tauri/tauri.conf.json" 2>/dev/null; then
+              old_version="$(git show "$base:src-tauri/tauri.conf.json" | jq -er '.version')"
+            fi
+          fi
+          publish=false
+          if [[ "$GITHUB_REF" == refs/heads/main ]] &&
+             { [[ "$GITHUB_EVENT_NAME" == push && "$version" != "$old_version" ]] ||
+               [[ "$GITHUB_EVENT_NAME" == workflow_dispatch && "$PUBLISH_REQUESTED" == true ]]; }; then
+            test -s "docs/releases/$version.md"
+            grep -Fxq '## English' "docs/releases/$version.md"
+            grep -Fxq '## Português (Brasil)' "docs/releases/$version.md"
+            publish=true
+          fi
+          printf 'version=%s\npublish=%s\n' "$version" "$publish" >> "$GITHUB_OUTPUT"
+
+  build:
+    needs: prepare
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: windows-x64
+            runner: windows-2022
+            bundles: nsis
+            target: ''
+            path: src-tauri/target/release/bundle/nsis/*-setup.exe
+          - platform: macos-universal
+            runner: macos-15
+            bundles: dmg
+            target: universal-apple-darwin
+            path: src-tauri/target/universal-apple-darwin/release/bundle/dmg/*.dmg
+          - platform: linux-x64
+            runner: ubuntu-22.04
+            bundles: deb,appimage
+            target: ''
+            path: |
+              src-tauri/target/release/bundle/deb/*.deb
+              src-tauri/target/release/bundle/appimage/*.AppImage
+    name: Package ${{ matrix.platform }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install Linux build dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev libxdo-dev libdbus-1-dev libfuse2 patchelf xdg-utils
+      - name: Prepare Rust
+        shell: pwsh
+        run: |
+          rustup default stable
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          if ($env:RUNNER_OS -eq 'macOS') { rustup target add aarch64-apple-darwin x86_64-apple-darwin }
+      - name: Install frontend dependencies
+        shell: pwsh
+        run: |
+          if (Test-Path -LiteralPath package-lock.json) { npm ci } else { npm install }
+      - name: Build installer
+        shell: pwsh
+        env:
+          BUNDLES: ${{ matrix.bundles }}
+          RUST_TARGET: ${{ matrix.target }}
+          APPIMAGE_EXTRACT_AND_RUN: '1'
+        run: |
+          $buildArgs = @('run', 'tauri', 'build', '--', '--bundles', $env:BUNDLES)
+          if ($env:RUST_TARGET) { $buildArgs += @('--target', $env:RUST_TARGET) }
+          & npm @buildArgs
+          exit $LASTEXITCODE
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ClockStudy-${{ matrix.platform }}
+          path: ${{ matrix.path }}
+          if-no-files-found: error
+          compression-level: 0
+      - name: Prepare MSIX for Store submission
+        if: runner.os == 'Windows' && github.event_name == 'workflow_dispatch' && inputs.store_package
+        shell: pwsh
+        env:
+          STORE_IDENTITY_NAME: ${{ vars.STORE_IDENTITY_NAME }}
+          STORE_PUBLISHER: ${{ vars.STORE_PUBLISHER }}
+          STORE_PUBLISHER_DISPLAY_NAME: ${{ vars.STORE_PUBLISHER_DISPLAY_NAME }}
+        run: |
+          if (-not $env:STORE_IDENTITY_NAME -or -not $env:STORE_PUBLISHER -or -not $env:STORE_PUBLISHER_DISPLAY_NAME) {
+            throw 'Set the three Partner Center identity variables before building the MSIX.'
+          }
+          ./packaging/windows/pack-msix.ps1 -IdentityName $env:STORE_IDENTITY_NAME -Publisher $env:STORE_PUBLISHER -PublisherDisplayName $env:STORE_PUBLISHER_DISPLAY_NAME
+      - uses: actions/upload-artifact@v4
+        if: runner.os == 'Windows' && github.event_name == 'workflow_dispatch' && inputs.store_package
+        with:
+          name: ClockStudy-MSIX-for-submission
+          path: artifacts/ClockStudy-store-x64.msix
+          if-no-files-found: error
+
+  release:
+    needs: [prepare, build]
+    if: needs.prepare.outputs.publish == 'true'
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: ClockStudy-*
+          path: release-assets
+          merge-multiple: true
+      - name: Verify and publish packages
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.prepare.outputs.version }}
+        run: |
+          shopt -s nullglob
+          windows=(release-assets/*-setup.exe)
+          mac=(release-assets/*.dmg)
+          deb=(release-assets/*.deb)
+          appimage=(release-assets/*.AppImage)
+          for count in "${#windows[@]}" "${#mac[@]}" "${#deb[@]}" "${#appimage[@]}"; do
+            if [[ "$count" != 1 ]]; then
+              echo "::error::Expected one package in each of the four supported formats."
+              exit 1
+            fi
+          done
+          (
+            cd release-assets
+            sha256sum -- *-setup.exe *.dmg *.deb *.AppImage > SHA256SUMS.txt
+          )
+          tag="v$VERSION"
+          if gh release view "$tag" > /dev/null 2>&1; then
+            echo "::notice::Release $tag already exists. Bump the version to publish new packages."
+            exit 0
+          fi
+          gh release create "$tag" --target "$GITHUB_SHA" --prerelease \
+            --title "Clock Study $tag" --notes-file "docs/releases/$VERSION.md" \
+            "${windows[@]}" "${mac[@]}" "${deb[@]}" "${appimage[@]}" release-assets/SHA256SUMS.txt

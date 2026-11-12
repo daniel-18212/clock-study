@@ -1,6 +1,6 @@
 [package]
 name = "clock-study"
-version = "0.3.0"
+version = "0.3.1"
 description = "Pomodoro, cronômetro e temporizador para desktop"
 edition = "2021"
 
