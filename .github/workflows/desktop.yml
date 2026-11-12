@@ -28,6 +28,7 @@ jobs:
       version: ${{ steps.plan.outputs.version }}
       publish: ${{ steps.plan.outputs.publish }}
       reuse_run: ${{ steps.plan.outputs.reuse_run }}
+      build: ${{ steps.plan.outputs.build }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -53,6 +54,7 @@ jobs:
           fi
           old_version=""
           changed=""
+          build=true
           if [[ -n "$base" ]]; then
             changed="$(git diff --name-only "$base" HEAD)"
             en=0
@@ -65,6 +67,9 @@ jobs:
             fi
             if git cat-file -e "$base:src-tauri/tauri.conf.json" 2>/dev/null; then
               old_version="$(git show "$base:src-tauri/tauri.conf.json" | jq -er '.version')"
+            fi
+            if [[ -z "$(git diff --name-only "$base" HEAD -- . ':!README.md' ':!README.pt-BR.md' ':!docs/**')" ]]; then
+              build=false
             fi
           fi
           publish=false
@@ -94,12 +99,12 @@ jobs:
             grep -Fxq '## Português (Brasil)' "docs/releases/$version.md"
             publish=true
           fi
-          printf 'version=%s\npublish=%s\nreuse_run=%s\n' \
-            "$version" "$publish" "$reuse_run" >> "$GITHUB_OUTPUT"
+          printf 'version=%s\npublish=%s\nreuse_run=%s\nbuild=%s\n' \
+            "$version" "$publish" "$reuse_run" "$build" >> "$GITHUB_OUTPUT"
 
   build:
     needs: prepare
-    if: needs.prepare.outputs.reuse_run == ''
+    if: needs.prepare.outputs.build == 'true' && needs.prepare.outputs.reuse_run == ''
     strategy:
       fail-fast: false
       matrix:
