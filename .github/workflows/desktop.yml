@@ -21,9 +21,14 @@ permissions:
 jobs:
   prepare:
     runs-on: ubuntu-22.04
+    permissions:
+      actions: read
+      contents: read
     outputs:
       version: ${{ steps.plan.outputs.version }}
       publish: ${{ steps.plan.outputs.publish }}
+      reuse_run: ${{ steps.plan.outputs.reuse_run }}
+      source_sha: ${{ steps.plan.outputs.source_sha }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -34,6 +39,7 @@ jobs:
         shell: bash
         env:
           BEFORE: ${{ github.event.before }}
+          GH_TOKEN: ${{ github.token }}
           PUBLISH_REQUESTED: ${{ inputs.publish_release }}
         run: |
           version="$(jq -er '.version' src-tauri/tauri.conf.json)"
@@ -47,6 +53,7 @@ jobs:
             base="$BEFORE"
           fi
           old_version=""
+          changed=""
           if [[ -n "$base" ]]; then
             changed="$(git diff --name-only "$base" HEAD)"
             en=0
@@ -62,18 +69,36 @@ jobs:
             fi
           fi
           publish=false
+          reuse_run=""
+          source_sha="$GITHUB_SHA"
+          if [[ "$GITHUB_EVENT_NAME" == push && "$GITHUB_REF" == refs/heads/main &&
+                "$version" == "$old_version" && "$changed" == .github/workflows/desktop.yml ]]; then
+            candidate="$(gh api -X GET "repos/$GITHUB_REPOSITORY/actions/workflows/desktop.yml/runs" \
+              -f head_sha="$base" -f status=completed -f event=push \
+              --jq '.workflow_runs[0].id // empty')"
+            if [[ -n "$candidate" ]]; then
+              formats="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$candidate/artifacts" \
+                --jq '[.artifacts[] | select(.expired | not) | .name] | sort | join(",")')"
+              if [[ "$formats" == ClockStudy-linux-x64,ClockStudy-macos-universal,ClockStudy-windows-x64 ]]; then
+                reuse_run="$candidate"
+                source_sha="$base"
+              fi
+            fi
+          fi
           if [[ "$GITHUB_REF" == refs/heads/main ]] &&
-             { [[ "$GITHUB_EVENT_NAME" == push && "$version" != "$old_version" ]] ||
+             { [[ "$GITHUB_EVENT_NAME" == push && ( "$version" != "$old_version" || -n "$reuse_run" ) ]] ||
                [[ "$GITHUB_EVENT_NAME" == workflow_dispatch && "$PUBLISH_REQUESTED" == true ]]; }; then
             test -s "docs/releases/$version.md"
             grep -Fxq '## English' "docs/releases/$version.md"
             grep -Fxq '## Português (Brasil)' "docs/releases/$version.md"
             publish=true
           fi
-          printf 'version=%s\npublish=%s\n' "$version" "$publish" >> "$GITHUB_OUTPUT"
+          printf 'version=%s\npublish=%s\nreuse_run=%s\nsource_sha=%s\n' \
+            "$version" "$publish" "$reuse_run" "$source_sha" >> "$GITHUB_OUTPUT"
 
   build:
     needs: prepare
+    if: needs.prepare.outputs.reuse_run == ''
     strategy:
       fail-fast: false
       matrix:
@@ -158,9 +183,13 @@ jobs:
 
   release:
     needs: [prepare, build]
-    if: needs.prepare.outputs.publish == 'true'
+    if: >-
+      ${{ !cancelled() && needs.prepare.result == 'success' && needs.prepare.outputs.publish == 'true' &&
+      (needs.build.result == 'success' ||
+       (needs.build.result == 'skipped' && needs.prepare.outputs.reuse_run != '')) }}
     runs-on: ubuntu-22.04
     permissions:
+      actions: read
       contents: write
     steps:
       - uses: actions/checkout@v4
@@ -171,32 +200,35 @@ jobs:
           pattern: ClockStudy-*
           path: release-assets
           merge-multiple: true
+          github-token: ${{ github.token }}
+          run-id: ${{ needs.prepare.outputs.reuse_run || github.run_id }}
       - name: Verify and publish packages
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
           VERSION: ${{ needs.prepare.outputs.version }}
+          SOURCE_SHA: ${{ needs.prepare.outputs.source_sha }}
         run: |
-          shopt -s nullglob
-          windows=(release-assets/*-setup.exe)
-          mac=(release-assets/*.dmg)
-          deb=(release-assets/*.deb)
-          appimage=(release-assets/*.AppImage)
+          shopt -s nullglob globstar
+          windows=(release-assets/**/*-setup.exe)
+          mac=(release-assets/**/*.dmg)
+          deb=(release-assets/**/*.deb)
+          appimage=(release-assets/**/*.AppImage)
           for count in "${#windows[@]}" "${#mac[@]}" "${#deb[@]}" "${#appimage[@]}"; do
             if [[ "$count" != 1 ]]; then
               echo "::error::Expected one package in each of the four supported formats."
               exit 1
             fi
           done
-          (
-            cd release-assets
-            sha256sum -- *-setup.exe *.dmg *.deb *.AppImage > SHA256SUMS.txt
-          )
+          packages=("${windows[@]}" "${mac[@]}" "${deb[@]}" "${appimage[@]}")
+          for path in "${packages[@]}"; do
+            (cd -- "$(dirname -- "$path")" && sha256sum -- "$(basename -- "$path")")
+          done > release-assets/SHA256SUMS.txt
           tag="v$VERSION"
           if gh release view "$tag" > /dev/null 2>&1; then
             echo "::notice::Release $tag already exists. Bump the version to publish new packages."
             exit 0
           fi
-          gh release create "$tag" --target "$GITHUB_SHA" --prerelease \
+          gh release create "$tag" --target "$SOURCE_SHA" --prerelease \
             --title "Clock Study $tag" --notes-file "docs/releases/$VERSION.md" \
-            "${windows[@]}" "${mac[@]}" "${deb[@]}" "${appimage[@]}" release-assets/SHA256SUMS.txt
+            "${packages[@]}" release-assets/SHA256SUMS.txt
