@@ -171,8 +171,6 @@ jobs:
         with:
           distribution: temurin
           java-version: '21'
-      - uses: android-actions/setup-android@v3
-        if: matrix.platform == 'android-arm64'
       - name: Build and verify Android APK
         if: matrix.platform == 'android-arm64'
         shell: bash
@@ -183,9 +181,13 @@ jobs:
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
+          export ANDROID_HOME="${ANDROID_HOME:-/usr/local/lib/android/sdk}"
+          sdkmanager="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          test -x "$sdkmanager"
           ndk=28.2.13676358
           tools=35.0.0
-          sdkmanager "ndk;$ndk" "build-tools;$tools"
+          "$sdkmanager" --licenses < <(yes) >/dev/null
+          "$sdkmanager" "platform-tools" "ndk;$ndk" "build-tools;$tools"
           export NDK_HOME="$ANDROID_HOME/ndk/$ndk"
           export ANDROID_NDK_HOME="$NDK_HOME"
           rustup target add aarch64-linux-android
@@ -194,7 +196,7 @@ jobs:
           project=src-tauri/gen/android
           sdk="$(sed -nE 's/^[[:space:]]*compileSdk[[:space:]]*=[[:space:]]*([0-9]+).*$/\1/p' "$project/app/build.gradle.kts")"
           test -n "$sdk"
-          sdkmanager "platforms;android-$sdk"
+          "$sdkmanager" "platforms;android-$sdk"
           npm run tauri android build -- --apk --target aarch64
 
           mapfile -d '' apks < <(find "$project/app/build/outputs/apk" -type f -name '*release*.apk' -print0)
@@ -206,7 +208,7 @@ jobs:
           umask 077
           trap 'rm -f "$keystore"' EXIT
           if [[ -n "$ANDROID_KEYSTORE_BASE64" ]]; then
-            test -n "$ANDROID_KEYSTORE_PASSWORD" && test -n "$ANDROID_KEY_ALIAS" && test -n "$ANDROID_KEY_PASSWORD"
+            : "${ANDROID_KEYSTORE_PASSWORD:?}" "${ANDROID_KEY_ALIAS:?}" "${ANDROID_KEY_PASSWORD:?}"
             printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$keystore"
           else
             ANDROID_KEYSTORE_PASSWORD="$(openssl rand -hex 24)"
