@@ -28,7 +28,6 @@ jobs:
       version: ${{ steps.plan.outputs.version }}
       publish: ${{ steps.plan.outputs.publish }}
       reuse_run: ${{ steps.plan.outputs.reuse_run }}
-      source_sha: ${{ steps.plan.outputs.source_sha }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -70,20 +69,22 @@ jobs:
           fi
           publish=false
           reuse_run=""
-          source_sha="$GITHUB_SHA"
           if [[ "$GITHUB_EVENT_NAME" == push && "$GITHUB_REF" == refs/heads/main &&
                 "$version" == "$old_version" && "$changed" == .github/workflows/desktop.yml ]]; then
-            candidate="$(gh api -X GET "repos/$GITHUB_REPOSITORY/actions/workflows/desktop.yml/runs" \
-              -f head_sha="$base" -f status=completed -f event=push \
-              --jq '.workflow_runs[0].id // empty')"
-            if [[ -n "$candidate" ]]; then
+            while IFS= read -r source; do
+              difference="$(git diff --name-only "$source" HEAD)"
+              [[ -z "$difference" || "$difference" == .github/workflows/desktop.yml ]] || break
+              candidate="$(gh api -X GET "repos/$GITHUB_REPOSITORY/actions/workflows/desktop.yml/runs" \
+                -f head_sha="$source" -f status=completed -f event=push \
+                --jq '.workflow_runs[0].id // empty')"
+              [[ -n "$candidate" ]] || continue
               formats="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$candidate/artifacts" \
                 --jq '[.artifacts[] | select(.expired | not) | .name] | sort | join(",")')"
               if [[ "$formats" == ClockStudy-linux-x64,ClockStudy-macos-universal,ClockStudy-windows-x64 ]]; then
                 reuse_run="$candidate"
-                source_sha="$base"
+                break
               fi
-            fi
+            done < <(git rev-list --first-parent --max-count=8 "$base")
           fi
           if [[ "$GITHUB_REF" == refs/heads/main ]] &&
              { [[ "$GITHUB_EVENT_NAME" == push && ( "$version" != "$old_version" || -n "$reuse_run" ) ]] ||
@@ -93,8 +94,8 @@ jobs:
             grep -Fxq '## Português (Brasil)' "docs/releases/$version.md"
             publish=true
           fi
-          printf 'version=%s\npublish=%s\nreuse_run=%s\nsource_sha=%s\n' \
-            "$version" "$publish" "$reuse_run" "$source_sha" >> "$GITHUB_OUTPUT"
+          printf 'version=%s\npublish=%s\nreuse_run=%s\n' \
+            "$version" "$publish" "$reuse_run" >> "$GITHUB_OUTPUT"
 
   build:
     needs: prepare
@@ -207,7 +208,6 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           VERSION: ${{ needs.prepare.outputs.version }}
-          SOURCE_SHA: ${{ needs.prepare.outputs.source_sha }}
         run: |
           shopt -s nullglob globstar
           windows=(release-assets/**/*-setup.exe)
@@ -229,6 +229,7 @@ jobs:
             echo "::notice::Release $tag already exists. Bump the version to publish new packages."
             exit 0
           fi
-          gh release create "$tag" --target "$SOURCE_SHA" --prerelease \
+          # The Actions token can tag the current default branch, including CI-only fixes.
+          gh release create "$tag" --target "$GITHUB_SHA" --prerelease \
             --title "Clock Study $tag" --notes-file "docs/releases/$VERSION.md" \
             "${packages[@]}" release-assets/SHA256SUMS.txt
