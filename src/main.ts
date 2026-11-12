@@ -51,6 +51,7 @@ const lapHistory = element<HTMLOListElement>("lap-history");
 
 let state: Snapshot | undefined;
 let floating = false;
+let supportsFloating = false;
 let pending = false;
 let shown = "";
 let shownMode: Mode | undefined;
@@ -337,7 +338,7 @@ form.addEventListener("submit", async (event) => {
 form.addEventListener("input", () => { editError.textContent = ""; });
 
 async function toggleFloating() {
-  if (pending) return;
+  if (pending || !supportsFloating) return;
   pending = true;
   try {
     await invoke("set_floating", { enabled: !floating });
@@ -379,6 +380,23 @@ document.addEventListener("keydown", (event) => {
   event.preventDefault();
 });
 
-void listen<Snapshot>("clock-tick", ({ payload }) => render(payload))
-  .then(() => send())
+async function initialize() {
+  supportsFloating = await invoke<boolean>("supports_floating");
+  document.body.classList.toggle("mobile", !supportsFloating);
+  floatButton.hidden = !supportsFloating;
+  await listen<Snapshot>("clock-tick", ({ payload }) => render(payload));
+  await send();
+
+  if (!supportsFloating && !localStorage.getItem("notification-permission-requested")) {
+    void invoke("request_android_notifications")
+      .then(() => localStorage.setItem("notification-permission-requested", "1"))
+      .catch((error: unknown) => setNotice("Não foi possível pedir permissão de notificações. " + String(error)));
+  }
+}
+
+document.addEventListener("visibilitychange", () => {
+  if (!document.hidden && document.body.classList.contains("mobile")) void send();
+});
+
+void initialize()
   .catch((error: unknown) => setNotice("Não foi possível iniciar o relógio. " + String(error)));

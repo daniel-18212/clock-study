@@ -1,5 +1,22 @@
 use serde::{Deserialize, Serialize};
-use std::time::{Duration, Instant};
+use std::time::Duration;
+
+#[cfg(not(target_os = "android"))]
+pub fn now() -> Duration {
+    use std::{sync::OnceLock, time::Instant};
+
+    static ORIGIN: OnceLock<Instant> = OnceLock::new();
+    ORIGIN.get_or_init(Instant::now).elapsed()
+}
+
+#[cfg(target_os = "android")]
+pub fn now() -> Duration {
+    let mut value = libc::timespec { tv_sec: 0, tv_nsec: 0 };
+    // BOOTTIME includes time spent asleep with the screen locked.
+    let result = unsafe { libc::clock_gettime(libc::CLOCK_BOOTTIME, &mut value) };
+    assert_eq!(result, 0, "CLOCK_BOOTTIME unavailable");
+    Duration::new(value.tv_sec as u64, value.tv_nsec as u32)
+}
 
 #[derive(Clone, Copy, Debug, Default, Deserialize, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -53,15 +70,15 @@ pub struct Snapshot {
 #[derive(Default)]
 struct Clock {
     accumulated: Duration,
-    start: Option<Instant>,
+    start: Option<Duration>,
 }
 
 impl Clock {
-    fn elapsed(&self, now: Instant) -> Duration {
-        self.accumulated + self.start.map_or(Duration::ZERO, |start| now - start)
+    fn elapsed(&self, now: Duration) -> Duration {
+        self.accumulated + self.start.map_or(Duration::ZERO, |start| now.saturating_sub(start))
     }
 
-    fn pause(&mut self, now: Instant) {
+    fn pause(&mut self, now: Duration) {
         self.accumulated = self.elapsed(now);
         self.start = None;
     }
@@ -117,7 +134,20 @@ impl Timer {
         Some(Duration::from_secs(u64::from(seconds)))
     }
 
-    pub fn tick(&mut self, now: Instant) {
+    #[cfg(target_os = "android")]
+    pub fn alert_deadline(&self) -> Option<(Duration, &'static str)> {
+        let clock = &self.clocks[self.slot()];
+        let deadline = clock.start? + self.limit()?.saturating_sub(clock.accumulated);
+        let message = match self.mode {
+            Mode::Pomodoro if self.on_break => "Pausa concluída",
+            Mode::Pomodoro => "Foco concluído",
+            Mode::Countdown => "Tempo encerrado",
+            Mode::Stopwatch => return None,
+        };
+        Some((deadline, message))
+    }
+
+    pub fn tick(&mut self, now: Duration) {
         let slot = self.slot();
         if let Some(limit) = self.limit() {
             if self.clocks[slot].start.is_some() && self.clocks[slot].elapsed(now) >= limit {
@@ -137,7 +167,7 @@ impl Timer {
         }
     }
 
-    pub fn apply(&mut self, action: Action, now: Instant) -> Result<(), String> {
+    pub fn apply(&mut self, action: Action, now: Duration) -> Result<(), String> {
         self.tick(now);
         let slot = self.slot();
         match action {
@@ -194,7 +224,7 @@ impl Timer {
         Ok(())
     }
 
-    pub fn snapshot(&self, now: Instant) -> Snapshot {
+    pub fn snapshot(&self, now: Duration) -> Snapshot {
         let clock = &self.clocks[self.slot()];
         let elapsed = clock.elapsed(now);
         let seconds = self.limit().map_or(elapsed.as_secs(), |limit| {

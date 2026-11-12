@@ -106,3 +106,33 @@ h1 { font-size: 20px; margin: 0 0 15px; }
   .toolbar nav button { padding-inline: 7px; font-size: 12px; }
   .presets button { padding-inline: 7px; font-size: 12px; }
 }
+
+.mobile .clock {
+  min-height: 310px;
+  padding: max(16px, env(safe-area-inset-top))
+    max(14px, env(safe-area-inset-right))
+    max(18px, env(safe-area-inset-bottom))
+    max(14px, env(safe-area-inset-left));
+}
+.mobile .toolbar nav {
+  width: 100%;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+.mobile button { min-height: 44px; }
+.mobile .toolbar button { padding-inline: 3px; }
+.mobile .presets { flex-wrap: wrap; }
+.mobile .controls { gap: 12px; }
+.mobile .icon { min-width: 60px; height: 52px; }
+.mobile .duration input { min-height: 44px; }
+
+@media (orientation: portrait) {
+  .mobile .display:not(.hours) {
+    display: grid;
+    grid-template-columns: repeat(2, max-content);
+    align-content: center;
+    row-gap: clamp(12px, 6cqh, 40px);
+    --clock-size: min(64cqw, 47cqh, 250px);
+  }
+  .mobile .display:not(.hours) .colon { display: none; }
+}
