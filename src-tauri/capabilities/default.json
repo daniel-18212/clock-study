@@ -1,0 +1,6 @@
+{
+  "identifier": "main-window",
+  "description": "Janela local do Clock Study",
+  "windows": ["main"],
+  "permissions": ["core:default"]
+}

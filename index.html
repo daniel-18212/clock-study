@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="color-scheme" content="dark">
+    <title>Clock Study</title>
+  </head>
+  <body>
+    <main class="clock">
+      <header class="toolbar">
+        <nav aria-label="Modo de contagem">
+          <button type="button" data-mode="pomodoro" aria-pressed="true">Pomodoro</button>
+          <button type="button" data-mode="stopwatch" aria-pressed="false">Cronômetro</button>
+          <button type="button" data-mode="countdown" aria-pressed="false">Temporizador</button>
+        </nav>
+        <button id="float" type="button" aria-pressed="false">Flutuar</button>
+      </header>
+      <div class="status"><span class="indicator"></span><span id="phase">Foco · 1º ciclo</span></div>
+      <button type="button" id="display" class="display" aria-label="25:00. Editar tempo."></button>
+      <div class="presets" id="presets"></div>
+      <div class="controls">
+        <button type="button" id="reset" class="icon" aria-label="Reiniciar" title="Reiniciar (R)">↺</button>
+        <button type="button" id="start" class="icon primary" aria-label="Iniciar" title="Iniciar (Espaço)">▶</button>
+      </div>
+      <p id="notice" role="status" hidden></p>
+    </main>
+    <dialog id="editor">
+      <form id="settings">
+        <h1 id="editor-title">Editar tempos</h1>
+        <div id="fields"></div>
+        <p id="edit-note" class="hint" hidden>Salvar reinicia a sessão atual.</p>
+        <p id="editor-error" class="error" role="alert"></p>
+        <div class="dialog-actions">
+          <button id="cancel" type="button">Cancelar</button>
+          <button class="primary" type="submit">Salvar</button>
+        </div>
+      </form>
+    </dialog>
+    <dialog id="laps">
+      <h1>Voltas</h1>
+      <ol id="lap-history"></ol>
+      <form method="dialog" class="dialog-actions"><button>Fechar</button></form>
+    </dialog>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
