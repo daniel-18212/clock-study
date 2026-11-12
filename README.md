@@ -68,3 +68,7 @@ Update the version in `package.json`, `src-tauri/Cargo.toml`, and `src-tauri/tau
 For the Microsoft Store, create an MSIX product in [Partner Center](https://partner.microsoft.com/dashboard). Set the repository Actions variables `STORE_IDENTITY_NAME`, `STORE_PUBLISHER`, and `STORE_PUBLISHER_DISPLAY_NAME` using **Product identity**. Run **Clock Study Desktop** with **Prepare an MSIX for Microsoft Store submission** selected. Microsoft signs the MSIX after certification.
 
 </details>
+
+## Contact
+
+**Daniel Rodrigues** · [daniel_18212@hotmail.com](mailto:daniel_18212@hotmail.com)
