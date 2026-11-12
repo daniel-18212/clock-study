@@ -24,6 +24,8 @@
 | **Compatible Linux x64** | `*.AppImage` | Mark the file as executable and open it. Some distributions require FUSE. |
 | **Android ARM64** | `*_android-arm64.apk` | On your phone, open the downloaded APK and follow Android's installation prompt. |
 
+In portrait, the flip digits stack vertically, including when the timer displays hours. In landscape, the time sits in a wide row beside the presets and playback controls.
+
 Allow notifications on the first Android launch to receive Pomodoro and countdown alerts with the screen locked. Android's notification and Do Not Disturb settings control whether the alert plays sound. Force-stopping the app cancels its alarms.
 
 > [!NOTE]

@@ -24,6 +24,8 @@
 | **Linux x64 compatível** | `*.AppImage` | Marque o arquivo como executável e abra. Algumas distribuições precisam de suporte ao FUSE. |
 | **Android ARM64** | `*_android-arm64.apk` | No celular, abra o APK baixado e siga a confirmação de instalação do Android. |
 
+Em retrato, os dígitos ficam empilhados, inclusive quando o relógio exibe horas. Em paisagem, o tempo fica em uma linha ampla, ao lado dos atalhos e controles.
+
 Permita notificações na primeira abertura para receber os avisos do Pomodoro e do temporizador com a tela bloqueada. As configurações de notificações e do modo Não Perturbe do Android controlam o som do aviso. Forçar a parada do app cancela os alarmes.
 
 > [!NOTE]

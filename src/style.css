@@ -108,11 +108,12 @@ h1 { font-size: 20px; margin: 0 0 15px; }
 }
 
 .mobile .clock {
-  min-height: 310px;
-  padding: max(16px, env(safe-area-inset-top))
-    max(14px, env(safe-area-inset-right))
-    max(18px, env(safe-area-inset-bottom))
-    max(14px, env(safe-area-inset-left));
+  min-height: 280px;
+  gap: clamp(6px, 1.5dvh, 12px);
+  padding: max(10px, env(safe-area-inset-top))
+    max(10px, env(safe-area-inset-right))
+    max(10px, env(safe-area-inset-bottom))
+    max(10px, env(safe-area-inset-left));
 }
 .mobile .toolbar nav {
   width: 100%;
@@ -127,12 +128,35 @@ h1 { font-size: 20px; margin: 0 0 15px; }
 .mobile .duration input { min-height: 44px; }
 
 @media (orientation: portrait) {
-  .mobile .display:not(.hours) {
+  .mobile .display {
     display: grid;
     grid-template-columns: repeat(2, max-content);
     align-content: center;
-    row-gap: clamp(12px, 6cqh, 40px);
-    --clock-size: min(64cqw, 47cqh, 250px);
+    row-gap: min(16px, 4cqh);
+    --clock-size: min(79cqw, 50cqh);
   }
-  .mobile .display:not(.hours) .colon { display: none; }
+  .mobile .display.hours {
+    --clock-size: min(79cqw, 32cqh);
+  }
+  .mobile .display .colon { display: none; }
+}
+
+@media (orientation: landscape) {
+  .mobile .clock {
+    grid-template-columns: minmax(0, 1fr) clamp(158px, 23vw, 220px);
+    grid-template-rows: auto auto minmax(62px, 1fr) auto;
+    grid-template-areas:
+      "toolbar toolbar"
+      "status  presets"
+      "display presets"
+      "display controls";
+    column-gap: clamp(10px, 2.5vw, 28px);
+  }
+  .mobile .toolbar { grid-area: toolbar; }
+  .mobile .toolbar nav { max-width: 460px; margin-inline: auto; }
+  .mobile .status { grid-area: status; }
+  .mobile .display { grid-area: display; --clock-size: min(36cqw, 104cqh); }
+  .mobile .display.hours { --clock-size: min(23cqw, 104cqh); }
+  .mobile .presets { grid-area: presets; align-content: center; }
+  .mobile .controls { grid-area: controls; }
 }
