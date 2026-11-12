@@ -1,32 +1,45 @@
-# Clock Study
+<p align="center">
+  <img src="docs/media/clock-study-cover.png" alt="Clock Study illustration showing the 25-minute Pomodoro and the floating clock" width="100%">
+</p>
 
-[Português (Brasil)](README.pt-BR.md)
+<h1 align="center">Clock Study</h1>
+<p align="center">A flip clock for focused work, with Pomodoro, a countdown timer, and a stopwatch.</p>
+<p align="center">
+  <strong><a href="https://github.com/daniel-18212/clock-study/releases">Download Clock Study</a></strong>
+  · <a href="README.pt-BR.md">Português (Brasil)</a>
+  · <a href="#build-and-release">Build from source</a>
+</p>
 
-An offline desktop Pomodoro, countdown timer, and stopwatch with a resizable floating flip clock.
+## Get started
 
-## Download and install
+1. Download the package for your system from [Releases](https://github.com/daniel-18212/clock-study/releases).
+2. Open Clock Study, choose a timer, and press **Play**.
+3. Select **Flutuar** to keep the timer in a small resizable window while you work. Select **Expandir** to return to the main window.
 
-Download your package from [GitHub Releases](https://github.com/daniel-18212/clock-study/releases).
-
-| System | Package | Installation |
+| System | Download | Open it |
 | --- | --- | --- |
-| Windows 11 x64 | `*-setup.exe` | Run the installer. It includes the offline WebView2 installer for systems that need it. |
-| macOS, Apple Silicon and Intel | `*.dmg` | Open the disk image and drag Clock Study into Applications. |
-| Ubuntu / Debian x64 | `*.deb` | Open it with your package manager or run `sudo apt install ./<file>.deb` from the download folder. |
-| Compatible Linux x64 | `*.AppImage` | Make the file executable and open it. Some distributions require FUSE support. |
+| **Windows 11 x64** | `*-setup.exe` | Run the installer. It includes the offline WebView2 installer. |
+| **macOS · Apple Silicon and Intel** | `*.dmg` | Open the disk image and drag Clock Study into Applications. |
+| **Ubuntu / Debian x64** | `*.deb` | Open the package with your package manager. |
+| **Compatible Linux x64** | `*.AppImage` | Mark the file as executable and open it. Some distributions require FUSE. |
 
-Preview releases have no trusted Windows publisher signature or Apple notarization. Windows Smart App Control or macOS Gatekeeper may block them. On Linux Wayland, the compositor controls whether the floating window stays above other apps.
+> [!NOTE]
+> The current release is a preview. Windows Smart App Control and macOS Gatekeeper may block packages without a trusted signature or Apple notarization. On Linux Wayland, the desktop compositor controls whether the floating window stays above other apps.
 
-## Use Clock Study
+## Choose your timer
 
-- **Pomodoro:** Set focus, both breaks, and the number of focus blocks before the long break.
-- **Countdown:** Set hours, minutes, and seconds. Click the digits to edit the duration.
-- **Stopwatch:** Start, pause, resume, reset, and record laps.
-- **Floating window:** Click **Flutuar** to compact the window without interrupting the timer. Drag or resize it with the native window controls. Click **Expandir** to restore it.
+| Mode | Use it for |
+| --- | --- |
+| **Pomodoro** | Set focus time, short and long breaks, and how many focus blocks come before a long break. |
+| **Countdown** | Set hours, minutes, and seconds. Click the digits to edit the duration. |
+| **Stopwatch** | Count up and record laps. |
 
-Durations and window sizes are saved locally. The interface is currently in Brazilian Portuguese.
+Clock Study works offline and saves durations and window sizes on the device. The app interface is in Brazilian Portuguese.
 
 ## Build and release
+
+<details>
+<summary>Local development</summary>
 
 Install Node.js 22, Rust, and the [Tauri prerequisites](https://v2.tauri.app/start/prerequisites/) for your system.
 
@@ -35,10 +48,23 @@ npm install
 npm run tauri dev
 ```
 
-Build on the target OS using `npm run tauri build -- --bundles nsis` for Windows, `--bundles dmg` for macOS, or `--bundles deb,appimage` for Linux.
+Run the packaging command on the target system:
 
-[Clock Study Desktop](.github/workflows/desktop.yml) builds all three platforms. A version change on `main` publishes the installers and SHA-256 checksums as a prerelease once every build succeeds. Bump the version in `package.json`, `src-tauri/Cargo.toml`, and `src-tauri/tauri.conf.json`, and add bilingual notes under `docs/releases/`. Update both READMEs together when installation, usage, or build steps change.
+| System | Command |
+| --- | --- |
+| Windows | `npm run tauri build -- --bundles nsis` |
+| macOS | `npm run tauri build -- --bundles dmg` |
+| Linux | `npm run tauri build -- --bundles deb,appimage` |
 
-## Microsoft Store
+</details>
 
-Create an MSIX product in [Partner Center](https://partner.microsoft.com/dashboard). Set the repository Actions variables `STORE_IDENTITY_NAME`, `STORE_PUBLISHER`, and `STORE_PUBLISHER_DISPLAY_NAME` using **Product identity**. Run **Clock Study Desktop** with **Prepare an MSIX for Microsoft Store submission** selected. Microsoft signs the MSIX after certification.
+<details>
+<summary>GitHub Releases and Microsoft Store</summary>
+
+The [desktop workflow](.github/workflows/desktop.yml) builds all three platforms. A version bump on `main` publishes a prerelease with the installers and SHA-256 checksums once all builds succeed.
+
+Update the version in `package.json`, `src-tauri/Cargo.toml`, and `src-tauri/tauri.conf.json`. Add notes in both languages to `docs/releases/`. Update both READMEs in the same change when installation, usage, or build steps change.
+
+For the Microsoft Store, create an MSIX product in [Partner Center](https://partner.microsoft.com/dashboard). Set the repository Actions variables `STORE_IDENTITY_NAME`, `STORE_PUBLISHER`, and `STORE_PUBLISHER_DISPLAY_NAME` using **Product identity**. Run **Clock Study Desktop** with **Prepare an MSIX for Microsoft Store submission** selected. Microsoft signs the MSIX after certification.
+
+</details>
